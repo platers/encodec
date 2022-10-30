@@ -8,6 +8,7 @@
 import argparse
 from pathlib import Path
 import sys
+import time
 
 import torchaudio
 import torch
@@ -72,6 +73,11 @@ def get_parser():
         help='Automatically rescale the output to avoid clipping.')
     parser.add_argument(
         '-g', '--gpu', action='store_true', help='Use GPU if available.')
+    parser.add_argument(
+        '-t',
+        '--time',
+        action='store_true',
+        help='Print elapse time information.')
     return parser
 
 
@@ -102,9 +108,14 @@ def check_clipping(wav, args):
 
 def main():
     args = get_parser().parse_args()
+    # modified by mimbres
+    if args.time:
+        start = time.time()
+
     if not args.input.exists():
         fatal(f"Input file {args.input} does not exist.")
 
+    # modified by mimbres
     if args.gpu:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
@@ -149,6 +160,13 @@ def main():
             out, out_sample_rate = decompress(compressed, device=device)
             check_clipping(out, args)
             save_audio(out, args.output, out_sample_rate, rescale=args.rescale)
+
+        # modified by mimbres
+        if args.time:
+            end = time.time()
+            print(
+                f"Time elapsed: {end - start} seconds for b={args.bandwidth}, hq={args.hq}, lm={args.lm}, device={device}"
+            )
 
 
 if __name__ == '__main__':
