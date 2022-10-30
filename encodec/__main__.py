@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 
 import torchaudio
-import torch 
+import torch
 
 from .compress import compress, decompress, MODELS
 from .utils import save_audio, convert_audio
@@ -105,7 +105,7 @@ def main():
     if not args.input.exists():
         fatal(f"Input file {args.input} does not exist.")
 
-    if args.use_gpu:
+    if args.gpu:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.input.suffix.lower() == SUFFIX:
