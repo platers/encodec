@@ -71,7 +71,7 @@ the storage location, [checkout their documentation.](https://pytorch.org/docs/s
 ### Compression
 
 ```bash
-encodec [-b TARGET_BANDWIDTH] [-f] [--hq] [--lm] INPUT_FILE [OUTPUT_FILE]
+OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=1 encodec [-b TARGET_BANDWIDTH] [-f] [--hq] [--lm] INPUT_FILE [OUTPUT_FILE]
 ```
 Given any audio file supported by torchaudio on your platform, compresses
 it with EnCodec to the target bandwidth (default is 6 kbps, can be either 1.5, 3, 6, 12 or 24).
