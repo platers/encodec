@@ -3,7 +3,6 @@
 #
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-
 """EnCodec model implementation."""
 
 import math
@@ -17,7 +16,6 @@ from torch import nn
 from . import quantization as qt
 from . import modules as m
 from .utils import _check_checksum, _linear_overlap_add, _get_checkpoint_url
-
 
 ROOT_URL = 'https://dl.fbaipublicfiles.com/encodec/v0/'
 
@@ -34,17 +32,25 @@ class LMModel(nn.Module):
         dim (int): transformer dimension.
         **kwargs: passed to `encodec.modules.transformer.StreamingTransformerEncoder`.
     """
-    def __init__(self, n_q: int = 32, card: int = 1024, dim: int = 200, **kwargs):
+
+    def __init__(self,
+                 n_q: int = 32,
+                 card: int = 1024,
+                 dim: int = 200,
+                 **kwargs):
         super().__init__()
         self.card = card
         self.n_q = n_q
         self.dim = dim
         self.transformer = m.StreamingTransformerEncoder(dim=dim, **kwargs)
-        self.emb = nn.ModuleList([nn.Embedding(card + 1, dim) for _ in range(n_q)])
+        self.emb = nn.ModuleList(
+            [nn.Embedding(card + 1, dim) for _ in range(n_q)])
         self.linears = nn.ModuleList([nn.Linear(dim, card) for _ in range(n_q)])
 
-    def forward(self, indices: torch.Tensor,
-                states: tp.Optional[tp.List[torch.Tensor]] = None, offset: int = 0):
+    def forward(self,
+                indices: torch.Tensor,
+                states: tp.Optional[tp.List[torch.Tensor]] = None,
+                offset: int = 0):
         """
         Args:
             indices (torch.Tensor): indices from the previous time step. Indices
@@ -61,7 +67,8 @@ class LMModel(nn.Module):
         B, K, T = indices.shape
         input_ = sum([self.emb[k](indices[:, k]) for k in range(K)])
         out, states, offset = self.transformer(input_, states, offset)
-        logits = torch.stack([self.linears[k](out) for k in range(K)], dim=1).permute(0, 3, 1, 2)
+        logits = torch.stack([self.linears[k](out) for k in range(K)],
+                             dim=1).permute(0, 3, 1, 2)
         return torch.softmax(logits, dim=1), states, offset
 
 
@@ -78,6 +85,7 @@ class EncodecModel(nn.Module):
         overlap (float): overlap between segment, given as a fraction of the segment duration.
         name (str): name of the model, used as metadata when compressing audio.
     """
+
     def __init__(self,
                  encoder: m.SEANetEncoder,
                  decoder: m.SEANetDecoder,
@@ -100,7 +108,8 @@ class EncodecModel(nn.Module):
         self.normalize = normalize
         self.segment = segment
         self.overlap = overlap
-        self.frame_rate = math.ceil(self.sample_rate / np.prod(self.encoder.ratios))
+        self.frame_rate = math.ceil(self.sample_rate /
+                                    np.prod(self.encoder.ratios))
         self.name = name
         self.bits_per_codebook = int(math.log2(self.quantizer.bins))
         assert 2 ** self.bits_per_codebook == self.quantizer.bins, \
@@ -140,7 +149,7 @@ class EncodecModel(nn.Module):
 
         encoded_frames: tp.List[EncodedFrame] = []
         for offset in range(0, length, stride):
-            frame = x[:, :, offset: offset + segment_length]
+            frame = x[:, :, offset:offset + segment_length]
             encoded_frames.append(self._encode_frame(frame))
         return encoded_frames
 
@@ -192,8 +201,9 @@ class EncodecModel(nn.Module):
 
     def set_target_bandwidth(self, bandwidth: float):
         if bandwidth not in self.target_bandwidths:
-            raise ValueError(f"This model doesn't support the bandwidth {bandwidth}. "
-                             f"Select one of {self.target_bandwidths}.")
+            raise ValueError(
+                f"This model doesn't support the bandwidth {bandwidth}. "
+                f"Select one of {self.target_bandwidths}.")
         self.bandwidth = bandwidth
 
     def get_lm_model(self) -> LMModel:
@@ -201,8 +211,12 @@ class EncodecModel(nn.Module):
         """
         torch.manual_seed(1234)  # todo remove: this
         device = next(self.parameters()).device
-        lm = LMModel(self.quantizer.n_q, self.quantizer.bins, num_layers=5, dim=200,
-                     past_context=int(3.5 * self.frame_rate)).to(device)
+        lm = LMModel(
+            self.quantizer.n_q,
+            self.quantizer.bins,
+            num_layers=5,
+            dim=200,
+            past_context=int(3.5 * self.frame_rate)).to(device)
         checkpoints = {
             'encodec_24khz': 'encodec_lm_24khz-1608e3c0.th',
             'encodec_48khz': 'encodec_lm_48khz-7add9fc3.th',
@@ -210,7 +224,8 @@ class EncodecModel(nn.Module):
         try:
             checkpoint_name = checkpoints[self.name]
         except KeyError:
-            raise RuntimeError("No LM pre-trained for the current Encodec model.")
+            raise RuntimeError(
+                "No LM pre-trained for the current Encodec model.")
         url = _get_checkpoint_url(ROOT_URL, checkpoint_name)
         state = torch.hub.load_state_dict_from_url(
             url, map_location='cpu', check_hash=True)  # type: ignore
@@ -227,9 +242,12 @@ class EncodecModel(nn.Module):
                    audio_normalize: bool = False,
                    segment: tp.Optional[float] = None,
                    name: str = 'unset'):
-        encoder = m.SEANetEncoder(channels=channels, norm=model_norm, causal=causal)
-        decoder = m.SEANetDecoder(channels=channels, norm=model_norm, causal=causal)
-        n_q = int(1000 * target_bandwidths[-1] // (math.ceil(sample_rate / encoder.hop_length) * 10))
+        encoder = m.SEANetEncoder(
+            channels=channels, norm=model_norm, causal=causal)
+        decoder = m.SEANetDecoder(
+            channels=channels, norm=model_norm, causal=causal)
+        n_q = int(1000 * target_bandwidths[-1] //
+                  (math.ceil(sample_rate / encoder.hop_length) * 10))
         quantizer = qt.ResidualVectorQuantizer(
             dimension=encoder.dimension,
             n_q=n_q,
@@ -249,7 +267,8 @@ class EncodecModel(nn.Module):
         return model
 
     @staticmethod
-    def _get_pretrained(checkpoint_name: str, repository: tp.Optional[Path] = None):
+    def _get_pretrained(checkpoint_name: str,
+                        repository: tp.Optional[Path] = None):
         if repository is not None:
             if not repository.is_dir():
                 raise ValueError(f"{repository} must exist and be a directory.")
@@ -259,10 +278,12 @@ class EncodecModel(nn.Module):
             return torch.load(file)
         else:
             url = _get_checkpoint_url(ROOT_URL, checkpoint_name)
-            return torch.hub.load_state_dict_from_url(url, map_location='cpu', check_hash=True)  # type:ignore
+            return torch.hub.load_state_dict_from_url(
+                url, map_location='cpu', check_hash=True)  # type:ignore
 
     @staticmethod
-    def encodec_model_24khz(pretrained: bool = True, repository: tp.Optional[Path] = None):
+    def encodec_model_24khz(pretrained: bool = True,
+                            repository: tp.Optional[Path] = None):
         """Return the pretrained causal 24khz model.
         """
         if repository:
@@ -272,17 +293,23 @@ class EncodecModel(nn.Module):
         sample_rate = 24_000
         channels = 1
         model = EncodecModel._get_model(
-            target_bandwidths, sample_rate, channels,
-            causal=True, model_norm='weight_norm', audio_normalize=False,
+            target_bandwidths,
+            sample_rate,
+            channels,
+            causal=True,
+            model_norm='weight_norm',
+            audio_normalize=False,
             name='encodec_24khz' if pretrained else 'unset')
         if pretrained:
-            state_dict = EncodecModel._get_pretrained(checkpoint_name, repository)
+            state_dict = EncodecModel._get_pretrained(checkpoint_name,
+                                                      repository)
             model.load_state_dict(state_dict)
         model.eval()
         return model
 
     @staticmethod
-    def encodec_model_48khz(pretrained: bool = True, repository: tp.Optional[Path] = None):
+    def encodec_model_48khz(pretrained: bool = True,
+                            repository: tp.Optional[Path] = None):
         """Return the pretrained 48khz model.
         """
         if repository:
@@ -292,11 +319,17 @@ class EncodecModel(nn.Module):
         sample_rate = 48_000
         channels = 2
         model = EncodecModel._get_model(
-            target_bandwidths, sample_rate, channels,
-            causal=False, model_norm='time_group_norm', audio_normalize=True,
-            segment=1., name='encodec_48khz' if pretrained else 'unset')
+            target_bandwidths,
+            sample_rate,
+            channels,
+            causal=False,
+            model_norm='time_group_norm',
+            audio_normalize=True,
+            segment=1.,
+            name='encodec_48khz' if pretrained else 'unset')
         if pretrained:
-            state_dict = EncodecModel._get_pretrained(checkpoint_name, repository)
+            state_dict = EncodecModel._get_pretrained(checkpoint_name,
+                                                      repository)
             model.load_state_dict(state_dict)
         model.eval()
         return model

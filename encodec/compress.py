@@ -3,7 +3,6 @@
 #
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-
 """API to compress/decompress audio to bytestreams."""
 
 import io
@@ -18,14 +17,15 @@ from . import binary
 from .quantization.ac import ArithmeticCoder, ArithmeticDecoder, build_stable_quantized_cdf
 from .model import EncodecModel, EncodedFrame
 
-
 MODELS = {
     'encodec_24khz': EncodecModel.encodec_model_24khz,
     'encodec_48khz': EncodecModel.encodec_model_48khz,
 }
 
 
-def compress_to_file(model: EncodecModel, wav: torch.Tensor, fo: tp.IO[bytes],
+def compress_to_file(model: EncodecModel,
+                     wav: torch.Tensor,
+                     fo: tp.IO[bytes],
                      use_lm: bool = True):
     """Compress a waveform to a file-object using the given model.
 
@@ -51,10 +51,10 @@ def compress_to_file(model: EncodecModel, wav: torch.Tensor, fo: tp.IO[bytes],
         frames = model.encode(wav[None])
 
     metadata = {
-        'm': model.name,                 # model name
-        'al': wav.shape[-1],             # audio_length
-        'nc': frames[0][0].shape[1],     # num_codebooks
-        'lm': use_lm,                    # use lm?
+        'm': model.name,  # model name
+        'al': wav.shape[-1],  # audio_length
+        'nc': frames[0][0].shape[1],  # num_codebooks
+        'lm': use_lm,  # use lm?
     }
     binary.write_ecdc_header(fo, metadata)
 
@@ -75,7 +75,7 @@ def compress_to_file(model: EncodecModel, wav: torch.Tensor, fo: tp.IO[bytes],
                     probas, states, offset = lm(input_, states, offset)
                 # We emulate a streaming scenario even though we do not provide an API for it.
                 # This gives us a more accurate benchmark.
-                input_ = 1 + frame[:, :, t: t + 1]
+                input_ = 1 + frame[:, :, t:t + 1]
             for k, value in enumerate(frame[0, :, t].tolist()):
                 if use_lm:
                     q_cdf = build_stable_quantized_cdf(
@@ -89,7 +89,8 @@ def compress_to_file(model: EncodecModel, wav: torch.Tensor, fo: tp.IO[bytes],
             packer.flush()
 
 
-def decompress_from_file(fo: tp.IO[bytes], device='cpu') -> tp.Tuple[torch.Tensor, int]:
+def decompress_from_file(fo: tp.IO[bytes],
+                         device='cpu') -> tp.Tuple[torch.Tensor, int]:
     """Decompress from a file-object.
     Returns a tuple `(wav, sample_rate)`.
 
@@ -106,7 +107,8 @@ def decompress_from_file(fo: tp.IO[bytes], device='cpu') -> tp.Tuple[torch.Tenso
     assert isinstance(audio_length, int)
     assert isinstance(num_codebooks, int)
     if model_name not in MODELS:
-        raise ValueError(f"The audio was compressed with an unsupported model {model_name}.")
+        raise ValueError(
+            f"The audio was compressed with an unsupported model {model_name}.")
     model = MODELS[model_name]().to(device)
 
     if use_lm:
@@ -117,9 +119,12 @@ def decompress_from_file(fo: tp.IO[bytes], device='cpu') -> tp.Tuple[torch.Tenso
     segment_stride = model.segment_stride or audio_length
     for offset in range(0, audio_length, segment_stride):
         this_segment_length = min(audio_length - offset, segment_length)
-        frame_length = int(math.ceil(this_segment_length / model.sample_rate * model.frame_rate))
+        frame_length = int(
+            math.ceil(this_segment_length / model.sample_rate *
+                      model.frame_rate))
         if model.normalize:
-            scale_f, = struct.unpack('!f', binary._read_exactly(fo, struct.calcsize('!f')))
+            scale_f, = struct.unpack(
+                '!f', binary._read_exactly(fo, struct.calcsize('!f')))
             scale = torch.tensor(scale_f, device=device).view(1)
         else:
             scale = None
@@ -127,10 +132,12 @@ def decompress_from_file(fo: tp.IO[bytes], device='cpu') -> tp.Tuple[torch.Tenso
             decoder = ArithmeticDecoder(fo)
             states: tp.Any = None
             offset = 0
-            input_ = torch.zeros(1, num_codebooks, 1, dtype=torch.long, device=device)
+            input_ = torch.zeros(
+                1, num_codebooks, 1, dtype=torch.long, device=device)
         else:
             unpacker = binary.BitUnpacker(model.bits_per_codebook, fo)
-        frame = torch.zeros(1, num_codebooks, frame_length, dtype=torch.long, device=device)
+        frame = torch.zeros(
+            1, num_codebooks, frame_length, dtype=torch.long, device=device)
         for t in range(frame_length):
             if use_lm:
                 with torch.no_grad():
@@ -139,7 +146,9 @@ def decompress_from_file(fo: tp.IO[bytes], device='cpu') -> tp.Tuple[torch.Tenso
             for k in range(num_codebooks):
                 if use_lm:
                     q_cdf = build_stable_quantized_cdf(
-                        probas[0, :, k, 0], decoder.total_range_bits, check=False)
+                        probas[0, :, k, 0],
+                        decoder.total_range_bits,
+                        check=False)
                     code = decoder.pull(q_cdf)
                 else:
                     code = unpacker.pull()
@@ -149,14 +158,17 @@ def decompress_from_file(fo: tp.IO[bytes], device='cpu') -> tp.Tuple[torch.Tenso
             codes = torch.tensor(code_list, dtype=torch.long, device=device)
             frame[0, :, t] = codes
             if use_lm:
-                input_ = 1 + frame[:, :, t: t + 1]
+                input_ = 1 + frame[:, :, t:t + 1]
         frames.append((frame, scale))
     with torch.no_grad():
         wav = model.decode(frames)
     return wav[0, :, :audio_length], model.sample_rate
 
 
-def compress(model: EncodecModel, wav: torch.Tensor, use_lm: bool = False) -> bytes:
+def compress(model: EncodecModel,
+             wav: torch.Tensor,
+             use_lm: bool = False,
+             device='cpu') -> bytes:
     """Compress a waveform using the given model. Returns the compressed bytes.
 
     Args:
@@ -168,6 +180,10 @@ def compress(model: EncodecModel, wav: torch.Tensor, use_lm: bool = False) -> by
             compress the stream using Entropy Coding. This will slow down compression
             quite a bit, expect between 20 to 30% of size reduction.
     """
+    # modified by mimbres
+    model.to(device)
+    wav = wav.to(device)
+
     fo = io.BytesIO()
     compress_to_file(model, wav, fo, use_lm=use_lm)
     return fo.getvalue()
