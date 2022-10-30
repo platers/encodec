@@ -107,6 +107,8 @@ def main():
 
     if args.gpu:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = "cpu"
 
     if args.input.suffix.lower() == SUFFIX:
         # Decompression
