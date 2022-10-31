@@ -165,12 +165,12 @@ def main():
                 out = out.cpu()
             save_audio(out, args.output, out_sample_rate, rescale=args.rescale)
 
-        # modified by mimbres
-        if args.time:
-            end = time.time()
-            print(
-                f"Time elapsed: {end - start} seconds for b={args.bandwidth}, hq={args.hq}, lm={args.lm}, device={device}"
-            )
+    # modified by mimbres
+    if args.time:
+        end = time.time()
+        print(
+            f"Time elapsed: {end - start} seconds for b={args.bandwidth}, hq={args.hq}, lm={args.lm}, device={device}"
+        )
 
 
 if __name__ == '__main__':
