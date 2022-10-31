@@ -132,6 +132,8 @@ def main():
         out, out_sample_rate = decompress(
             args.input.read_bytes(), device=device)
         check_clipping(out, args)
+        if args.gpu:
+            out = out.cpu()
         save_audio(out, args.output, out_sample_rate, rescale=args.rescale)
     else:
         # Compression
@@ -159,6 +161,8 @@ def main():
             assert args.output.suffix.lower() == '.wav'
             out, out_sample_rate = decompress(compressed, device=device)
             check_clipping(out, args)
+            if args.gpu:
+                out = out.cpu()
             save_audio(out, args.output, out_sample_rate, rescale=args.rescale)
 
         # modified by mimbres
