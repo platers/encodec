@@ -12,6 +12,7 @@ import time
 
 import torchaudio
 import torch
+import gc
 
 from .compress import compress, decompress, MODELS
 from .utils import save_audio, convert_audio
@@ -161,10 +162,13 @@ def main():
             # Save embedding only
             # Split the audio into chunks of 30 seconds to avoid OOM
 
-            chunks = wav.split(30 * model.sample_rate, dim=1)
+            chunks = wav.split(60 * model.sample_rate, dim=1)
             embs = []
             for chunk in chunks:
-                embs.append(model.encoder(chunk.unsqueeze(0).to(device)).squeeze(0).T)
+                with torch.no_grad():
+                    c = model.encoder(chunk.unsqueeze(0).to(device)).squeeze(0).T.cpu()
+                embs.append(c)
+
             embs = torch.cat(embs, dim=0)
             torch.save(embs, args.output)
             return
