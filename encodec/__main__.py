@@ -152,6 +152,7 @@ def main():
                 f"Bandwidth {args.bandwidth} is not supported by the model {model_name}"
             )
         model.set_target_bandwidth(args.bandwidth)
+        model.to(device)
 
         wav, sr = torchaudio.load(args.input)
         wav = convert_audio(wav, sr, model.sample_rate, model.channels)
