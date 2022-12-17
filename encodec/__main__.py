@@ -155,15 +155,23 @@ def main():
 
         wav, sr = torchaudio.load(args.input)
         wav = convert_audio(wav, sr, model.sample_rate, model.channels)
+
+        if args.output.suffix.lower() == ".pt":
+            # Save embedding only
+            # Split the audio into chunks of 30 seconds to avoid OOM
+
+            chunks = wav.split(30 * model.sample_rate, dim=1)
+            embs = []
+            for chunk in chunks:
+                embs.append(model.encoder(chunk.unsqueeze(0).to(device)).squeeze(0).T)
+            embs = torch.cat(embs, dim=0)
+            torch.save(embs, args.output)
+            return
+
         compressed = compress(model, wav, use_lm=args.lm, device=device)
         if args.output.suffix.lower() == SUFFIX:
             args.output.write_bytes(compressed)
         # modified by platers
-        elif args.output.suffix.lower() == ".pt":
-            # Save embedding only
-            emb = model.encoder(wav.unsqueeze(0).to(device))
-            emb = emb.squeeze(0).cpu()
-            torch.save(emb, args.output)
         else:
             # Directly run decompression stage
             assert args.output.suffix.lower() == ".wav"
